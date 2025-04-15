@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write  # 必须添加这个权限才能创建release
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -20,7 +23,7 @@ jobs:
     - name: Verify files
       shell: bash
       run: |
-        ls -l
+        ls -la
         if [ ! -f index.py ]; then
           echo "::error::index.py not found"
           exit 1
@@ -38,45 +41,33 @@ jobs:
         python -m pip install --upgrade pip
         pip install flask pyinstaller
 
-    - name: Build Linux/macOS executable
-      if: matrix.os != 'windows-latest'
+    - name: Build executable
       shell: bash
       run: |
         mkdir -p static templates
-        CMD="pyinstaller --onefile --name=app"
-        [ -d static ] && CMD+=" --add-data 'static:static'"
-        [ -d templates ] && CMD+=" --add-data 'templates:templates'"
-        CMD+=" index.py"
-        echo "Running: $CMD"
-        eval $CMD
-        mv dist/app app-${{ matrix.os }}
-
-    - name: Build Windows executable
-      if: matrix.os == 'windows-latest'
-      shell: powershell
-      run: |
-        # 创建必要目录
-        New-Item -ItemType Directory -Force -Path static,templates
         
-        # 动态构建PyInstaller命令
-        $cmd = "pyinstaller --onefile --name=app"
+        # 统一使用app作为基础名称
+        OUTPUT_NAME="app-${{ matrix.os }}"
+        [ "${{ matrix.os }}" == "windows-latest" ] && OUTPUT_NAME="app-win.exe"
         
-        if (Test-Path static) { $cmd += " --add-data 'static;static'" }
-        if (Test-Path templates) { $cmd += " --add-data 'templates;templates'" }
+        pyinstaller --onefile --name=$OUTPUT_NAME \
+          $( [ -d static ] && echo "--add-data 'static:static'" ) \
+          $( [ -d templates ] && echo "--add-data 'templates:templates'" ) \
+          index.py
         
-        $cmd += " index.py"
-        Write-Output "Running: $cmd"
-        Invoke-Expression $cmd
-        
-        # 重命名输出文件
-        Move-Item -Path dist\app.exe -Destination app-win.exe
+        # 移动文件到根目录
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          mv dist/$OUTPUT_NAME .
+        else
+          mv dist/$OUTPUT_NAME $OUTPUT_NAME
+        fi
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: app-${{ matrix.os }}
         path: |
-          app-${{ matrix.os }}
+          app-*
           app-win.exe
 
   release:
@@ -88,6 +79,11 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: artifacts
+        pattern: app-*
+        merge-multiple: true
+
+    - name: List downloaded files
+      run: ls -la artifacts/
 
     - name: Create release
       uses: softprops/action-gh-release@v1
