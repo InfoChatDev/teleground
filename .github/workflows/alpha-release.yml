@@ -38,7 +38,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install flask pyinstaller
 
-    - name: Build executable
+    - name: Build Linux/macOS executable
       if: matrix.os != 'windows-latest'
       shell: bash
       run: |
@@ -53,14 +53,23 @@ jobs:
 
     - name: Build Windows executable
       if: matrix.os == 'windows-latest'
-      shell: cmd
+      shell: powershell
       run: |
-        mkdir static templates
-        pyinstaller --onefile --name=app ^
-          %(exists static && echo --add-data "static;static") ^
-          %(exists templates && echo --add-data "templates;templates") ^
-          index.py
-        move dist\app.exe app-win.exe
+        # 创建必要目录
+        New-Item -ItemType Directory -Force -Path static,templates
+        
+        # 动态构建PyInstaller命令
+        $cmd = "pyinstaller --onefile --name=app"
+        
+        if (Test-Path static) { $cmd += " --add-data 'static;static'" }
+        if (Test-Path templates) { $cmd += " --add-data 'templates;templates'" }
+        
+        $cmd += " index.py"
+        Write-Output "Running: $cmd"
+        Invoke-Expression $cmd
+        
+        # 重命名输出文件
+        Move-Item -Path dist\app.exe -Destination app-win.exe
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
