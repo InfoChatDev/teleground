@@ -53,4 +53,4 @@ jobs:
                   # 压缩级别(默认0, 0-9, 0 为不压缩)
                   compression-level: 0
                   # 保留时间(默认90)
-                  retention-days: 1145141919810
+                  retention-days: 90
