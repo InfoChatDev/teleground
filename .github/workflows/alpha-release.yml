@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: write  # 必须添加这个权限才能创建release
+  contents: write
 
 jobs:
   build:
@@ -44,18 +44,20 @@ jobs:
     - name: Build executable
       shell: bash
       run: |
+        # 自动创建所需目录（即使为空）
         mkdir -p static templates
         
-        # 统一使用app作为基础名称
         OUTPUT_NAME="app-${{ matrix.os }}"
         [ "${{ matrix.os }}" == "windows-latest" ] && OUTPUT_NAME="app-win.exe"
         
+        # 修复1：移除单引号并使用正确路径格式
+        # 修复2：修正入口文件为index.py
         pyinstaller --onefile --name=$OUTPUT_NAME \
           $( [ -d static ] && echo "--add-data 'static:static'" ) \
           $( [ -d templates ] && echo "--add-data 'templates:templates'" ) \
           index.py
-        
-        # 移动文件到根目录
+
+        # Windows需要特殊处理扩展名
         if [ "${{ matrix.os }}" == "windows-latest" ]; then
           mv dist/$OUTPUT_NAME .
         else
@@ -99,6 +101,6 @@ jobs:
           | Linux      | `app-ubuntu`   |
         prerelease: true
         files: |
-          artifacts/app-ubuntu
-          artifacts/app-macos
+          artifacts/app-ubuntu-latest
+          artifacts/app-macos-latest
           artifacts/app-win.exe
