@@ -6,9 +6,11 @@ on:
     workflow_dispatch:
     # 仓库收到 push 和 pr 时触发工作流程
     push:
-        branches: ["master"]
+        branches:
+            - main
     pull_request:
-        branches: ["master"]
+        branches:
+            - main
 
 # GITHUB_TOKEN 的权限
 permissions:
