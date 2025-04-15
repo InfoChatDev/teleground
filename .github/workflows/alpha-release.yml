@@ -61,6 +61,6 @@ jobs:
           🚀 Commit: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
         prerelease: true
         files: |
-          artifacts/flask-alpha-ubuntu-latest.tar.gz
-          artifacts/flask-alpha-macos-latest.tar.gz
-          artifacts/flask-alpha-windows-latest.tar.gz
+          artifacts/flask-alpha-ubuntu-latest.zip
+          artifacts/flask-alpha-macos-latest.zip
+          artifacts/flask-alpha-windows-latest.zip
