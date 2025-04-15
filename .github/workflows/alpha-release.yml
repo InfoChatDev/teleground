@@ -24,12 +24,8 @@ jobs:
       shell: bash
       run: |
         ls -la
-        if [ ! -f index.py ]; then
-          echo "::error::index.py not found"
-          exit 1
-        fi
-        [ -d static ] && echo "static dir exists" || echo "static dir not found (optional)"
-        [ -d templates ] && echo "templates dir exists" || echo "templates dir not found (optional)"
+        [ -d static ] || echo "::warning::static directory not found (optional)"
+        [ -d templates ] || echo "::warning::templates directory not found (optional)"
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -47,22 +43,29 @@ jobs:
         # 自动创建所需目录（即使为空）
         mkdir -p static templates
         
-        OUTPUT_NAME="app-${{ matrix.os }}"
-        [ "${{ matrix.os }}" == "windows-latest" ] && OUTPUT_NAME="app-win.exe"
-        
-        # 修复1：移除单引号并使用正确路径格式
-        # 修复2：修正入口文件为index.py
-        pyinstaller --onefile --name=$OUTPUT_NAME \
-          $( [ -d static ] && echo "--add-data 'static:static'" ) \
-          $( [ -d templates ] && echo "--add-data 'templates:templates'" ) \
-          index.py
-
-        # Windows需要特殊处理扩展名
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          mv dist/$OUTPUT_NAME .
-        else
-          mv dist/$OUTPUT_NAME $OUTPUT_NAME
+        # 动态生成add-data参数
+        ADD_DATA_ARGS=""
+        if [ -d "static" ]; then
+          [ "${{ matrix.os }}" == "windows-latest" ] && SEP=";" || SEP=":"
+          ADD_DATA_ARGS+="--add-data static${SEP}static "
         fi
+        if [ -d "templates" ]; then
+          [ "${{ matrix.os }}" == "windows-latest" ] && SEP=";" || SEP=":"
+          ADD_DATA_ARGS+="--add-data templates${SEP}templates "
+        fi
+
+        # 设置输出文件名
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          OUTPUT_NAME="app-win.exe"
+        else
+          OUTPUT_NAME="app-${{ matrix.os }}"
+        fi
+
+        # 执行PyInstaller构建
+        pyinstaller --onefile --name="$OUTPUT_NAME" $ADD_DATA_ARGS index.py
+
+        # 移动生成的可执行文件
+        mv dist/* .
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -84,21 +87,18 @@ jobs:
         pattern: app-*
         merge-multiple: true
 
-    - name: List downloaded files
-      run: ls -la artifacts/
-
     - name: Create release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: alpha-${{ github.run_number }}
         name: "Build #${{ github.run_number }}"
         body: |
-          🌍 跨平台可执行文件 | Commit: ${{ github.sha }}
-          | 系统       | 文件           |
-          |------------|----------------|
-          | Windows    | `app-win.exe`  |
-          | macOS      | `app-macos`    |
-          | Linux      | `app-ubuntu`   |
+          🌍 Cross-Platform Executables | Commit: ${{ github.sha }}
+          | System      | File          |
+          |-------------|---------------|
+          | Windows     | `app-win.exe` |
+          | macOS       | `app-macos`    |
+          | Linux       | `app-ubuntu`  |
         prerelease: true
         files: |
           artifacts/app-ubuntu-latest
