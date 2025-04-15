@@ -53,4 +53,4 @@ jobs:
           prerelease: true
           files: ./artifacts/**/*
         env:
-          GITHUB_TOKEN: ${{ secrets.GIHTUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
