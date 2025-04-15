@@ -17,6 +17,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Verify files
+      run: |
+        ls -l
+        [ -f index.py ] || { echo "index.py not found"; exit 1; }
+        [ -d static ] && echo "static dir exists" || echo "static dir not found (optional)"
+        [ -d templates ] && echo "templates dir exists" || echo "templates dir not found (optional)"
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -24,19 +31,27 @@ jobs:
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip==21.1.1
+        python -m pip install --upgrade pip
         pip install flask pyinstaller
 
     - name: Build executable
       shell: bash
       run: |
-        # 通用构建命令
-        pyinstaller --onefile --name=app \
-          --add-data "static:static" \
-          --add-data "templates:templates" \
-          index.py
+        # 创建必要的资源目录（即使为空）
+        mkdir -p static templates
         
-        # 平台特定处理
+        # 动态生成PyInstaller命令
+        CMD="pyinstaller --onefile --name=app"
+        
+        # 只添加存在的资源目录
+        [ -d static ] && CMD+=" --add-data 'static:static'"
+        [ -d templates ] && CMD+=" --add-data 'templates:templates'"
+        
+        CMD+=" index.py"
+        echo "Running: $CMD"
+        eval $CMD
+
+        # 平台特定输出命名
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
           mv dist/app.exe app-win.exe
         else
@@ -67,14 +82,14 @@ jobs:
         tag_name: alpha-${{ github.run_number }}
         name: "Build #${{ github.run_number }}"
         body: |
-          🌍 跨平台可执行文件
-          | 系统       | 文件名          |
-          |------------|-----------------|
-          | Windows    | `app-win.exe`   |
-          | macOS      | `app-macos`     |
-          | Linux      | `app-ubuntu`    |
+          🌍 跨平台可执行文件 | Commit: ${{ github.sha }}
+          | 系统       | 文件           |
+          |------------|----------------|
+          | Windows    | `app-win.exe`  |
+          | macOS      | `app-macos`    |
+          | Linux      | `app-ubuntu`   |
         prerelease: true
         files: |
-          artifacts/app-win.exe
-          artifacts/app-macos
           artifacts/app-ubuntu
+          artifacts/app-macos
+          artifacts/app-win.exe
