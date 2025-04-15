@@ -1,9 +1,9 @@
-name: Build and Release Alpha
+name: Alpha Release
 
 on:
   push:
     branches:
-      - main  # 主分支有变动时触发
+      - main
 
 jobs:
   build:
@@ -12,9 +12,19 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ['3.8']
+      fail-fast: false  # 防止一个失败导致其他平台也失败
     
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Get latest release tag
+      id: get_version
+      run: |
+        latest_tag=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
+        major_version=$(echo $latest_tag | cut -d'.' -f1 | tr -d 'v')
+        echo "next_version=v$((major_version + 1)).0.0" >> $GITHUB_ENV
+        echo "Current version: $latest_tag"
+        echo "Next major version: $next_version"
     
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
@@ -26,25 +36,22 @@ jobs:
         python -m pip install --upgrade pip
         pip install flask
     
-    - name: Create build directory
+    - name: Prepare build directory
+      shell: bash
       run: |
         mkdir -p build/static
         mkdir -p build/templates
-    
-    - name: Copy files
-      run: |
         cp index.py build/
-        cp -r static/* build/static/
-        cp -r templates/* build/templates/
-      shell: bash
+        cp -r static/* build/static/ || true
+        cp -r templates/* build/templates/ || true
     
-    - name: Archive build
+    - name: Create archive
+      shell: bash
       run: |
         tar -czf flask-app-${{ matrix.os }}.tar.gz -C build .
-      shell: bash
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: flask-app-${{ matrix.os }}
         path: flask-app-${{ matrix.os }}.tar.gz
@@ -54,30 +61,36 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v3
+    - uses: actions/checkout@v4
+    
+    - name: Get latest release tag
+      id: get_version
+      run: |
+        latest_tag=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
+        major_version=$(echo $latest_tag | cut -d'.' -f1 | tr -d 'v')
+        echo "next_version=v$((major_version + 1)).0.0" >> $GITHUB_ENV
+    
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
-    
-    - name: Get current date for alpha tag
-      id: date
-      run: echo "ALPHA_TAG=alpha-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
     
     - name: Create Alpha Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ env.ALPHA_TAG }}  # 自动生成 alpha-YYYYMMDD-HHMMSS 标签
-        release_name: Alpha Release (${{ env.ALPHA_TAG }})
+        tag_name: ${{ env.next_version }}-alpha-${{ github.run_id }}
+        release_name: Alpha ${{ env.next_version }} (${{ github.run_id }})
         body: |
-          **Pre-release** version of the Flask application.
-          Built from main branch at ${{ github.sha }}.
+          Pre-release version for testing
+          Commit: ${{ github.sha }}
+          Run ID: ${{ github.run_id }}
           
           Supported platforms:
           - Windows
           - macOS
           - Linux
         draft: false
-        prerelease: true  # 标记为预发布版本
+        prerelease: true
         files: |
           artifacts/flask-app-ubuntu-latest.tar.gz
           artifacts/flask-app-macos-latest.tar.gz
