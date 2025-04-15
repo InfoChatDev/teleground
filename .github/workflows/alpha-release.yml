@@ -1,9 +1,9 @@
-name: Build and Release Flask App
+name: Build and Release Alpha
 
 on:
   push:
-    tags:
-      - 'v*' # 当推送v开头的标签时触发
+    branches:
+      - main  # 主分支有变动时触发
 
 jobs:
   build:
@@ -25,7 +25,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install flask
-        
+    
     - name: Create build directory
       run: |
         mkdir -p build/static
@@ -59,26 +59,26 @@ jobs:
       with:
         path: artifacts
     
-    - name: Create Release
-      id: create_release
+    - name: Get current date for alpha tag
+      id: date
+      run: echo "ALPHA_TAG=alpha-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
+    
+    - name: Create Alpha Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref_name }}
+        tag_name: ${{ env.ALPHA_TAG }}  # 自动生成 alpha-YYYYMMDD-HHMMSS 标签
+        release_name: Alpha Release (${{ env.ALPHA_TAG }})
         body: |
-          Flask application built for multiple platforms
+          **Pre-release** version of the Flask application.
+          Built from main branch at ${{ github.sha }}.
+          
+          Supported platforms:
           - Windows
           - macOS
           - Linux
         draft: false
-        prerelease: false
-    
-    - name: Upload Release Assets
-      run: |
-        for file in artifacts/*; do
-          asset_name=$(basename "$file")
-          echo "Uploading $asset_name"
-          gh release upload ${{ github.ref }} "$file" --clobber
-        done
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        prerelease: true  # 标记为预发布版本
+        files: |
+          artifacts/flask-app-ubuntu-latest.tar.gz
+          artifacts/flask-app-macos-latest.tar.gz
+          artifacts/flask-app-windows-latest.tar.gz
