@@ -49,7 +49,8 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: artifacts
-
+    - name: Echo
+      run: ls
     - name: Create Alpha Release
       uses: softprops/action-gh-release@v1
       with:
