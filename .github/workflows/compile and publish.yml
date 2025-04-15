@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}
+    name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -36,14 +36,15 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
-        name: flask-app-${{ matrix.os }}
-        path: dist_upload/
+        name: flask-${{ runner.os }}
+        path: dist_upload/*
 
   release:
+    name: Create Alpha Release
     needs: build
     runs-on: ubuntu-latest
     steps:
-    - name: Download artifacts
+    - name: Download all artifacts
       uses: actions/download-artifact@v3
       with:
         path: artifacts
