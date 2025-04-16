@@ -4,77 +4,129 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (format vX.Y.Z)'
+        description: 'Semantic version (格式：vX.Y.Z)'
         required: true
         default: 'v1.0.0'
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ['3.8']
-    
+        os: 
+          - ubuntu-latest
+          - ubuntu-22.04
+          - macos-latest
+          - macos-13
+          - windows-latest
+          - windows-2025
+        python-version: ["3.8"]
+      fail-fast: false
+
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
+
+    - name: Verify files
+      shell: bash
+      run: |
+        [ -d static ] && echo "static目录存在" || true
+        [ -d templates ] && echo "templates目录存在" || true
+
+    - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flask
-    
-    - name: Prepare build directory
+        pip install flask pyinstaller
+
+    - name: Build executable
       shell: bash
       run: |
-        mkdir -p build/static
-        mkdir -p build/templates
-        cp index.py build/
-        cp -r static/* build/static/ || true
-        cp -r templates/* build/templates/ || true
-    
-    - name: Create archive
-      shell: bash
-      run: |
-        tar -czf flask-app-${{ matrix.os }}.tar.gz -C build .
-    
+        mkdir -p static templates
+
+        if [[ "${{ matrix.os }}" == windows* ]]; then
+          SEP=";"
+          EXT=".exe"
+        else
+          SEP=":"
+          EXT=""
+        fi
+
+        PYI_ARGS="--onefile"
+        [ -d "static" ] && PYI_ARGS+=" --add-data static${SEP}static"
+        [ -d "templates" ] && PYI_ARGS+=" --add-data templates${SEP}templates"
+
+        case "${{ matrix.os }}" in
+          ubuntu-latest)   SYS_TAG="ubuntu24" ;;
+          ubuntu-22.04)    SYS_TAG="ubuntu22" ;;
+          macos-latest)    SYS_TAG="macos14" ;;
+          macos-13)        SYS_TAG="macos13" ;;
+          windows-latest)  SYS_TAG="win10" ;;
+          windows-2025)    SYS_TAG="win11" ;;
+        esac
+
+        OUTPUT_NAME="app-${SYS_TAG}-${{ github.event.inputs.version }}${EXT}"
+        
+        pyinstaller $PYI_ARGS --name "$OUTPUT_NAME" index.py
+        mv dist/* .
+
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: flask-app-${{ matrix.os }}
-        path: flask-app-${{ matrix.os }}.tar.gz
+        name: prod-${{ matrix.os }}
+        path: |
+          app-*
+          *.exe
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/download-artifact@v4
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
-    
+        pattern: 'prod-*'
+        merge-multiple: true
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.event.inputs.version }}
-        release_name: Release ${{ github.event.inputs.version }}
+        name: "Release ${{ github.event.inputs.version }}"
         body: |
-          Stable production release
-          Version: ${{ github.event.inputs.version }}
-          Commit: ${{ github.sha }}
-          
-          Supported platforms:
-          - Windows
-          - macOS
-          - Linux
+          ## 🏷 版本信息
+          **版本号:** `${{ github.event.inputs.version }}`  
+          **稳定状态:** Production Ready  
+          **发布日期:** ${{ steps.date.outputs.current_date }}  
+
+          ## 📦 系统支持
+          | 系统版本       | 可执行文件                     |
+          |----------------|------------------------------|
+          | Windows 11     | `app-win11-${{ github.event.inputs.version }}.exe` |
+          | Windows 10     | `app-win10-${{ github.event.inputs.version }}.exe` |
+          | macOS 14       | `app-macos14-${{ github.event.inputs.version }}`    |
+          | macOS 13       | `app-macos13-${{ github.event.inputs.version }}`    |
+          | Ubuntu 24.04   | `app-ubuntu24-${{ github.event.inputs.version }}`   |
+          | Ubuntu 22.04   | `app-ubuntu22-${{ github.event.inputs.version }}`   |
+
+          ## 🔍 构建详情
+          - 提交哈希: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          - 构建时间: ${{ steps.date.outputs.current_date }}
+          - Python版本: 3.8
         draft: false
         prerelease: false
         files: |
-          artifacts/flask-app-ubuntu-latest.tar.gz
-          artifacts/flask-app-macos-latest.tar.gz
-          artifacts/flask-app-windows-latest.tar.gz
+          artifacts/app-ubuntu24-${{ github.event.inputs.version }}
+          artifacts/app-ubuntu22-${{ github.event.inputs.version }}
+          artifacts/app-macos14-${{ github.event.inputs.version }}
+          artifacts/app-macos13-${{ github.event.inputs.version }}
+          artifacts/app-win10-${{ github.event.inputs.version }}.exe
+          artifacts/app-win11-${{ github.event.inputs.version }}.exe
