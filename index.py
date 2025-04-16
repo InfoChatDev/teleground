@@ -1,13 +1,13 @@
 from flask import *
 import atexit
-from json import *
+import json
 
 app = Flask(__name__)
 
 chat_list = []
 
 def exit_run():
-    content = dumps(chat_list)
+    content = json.dumps(chat_list)
     with open("saved.json","w")as f:
         f.write(content)
         
@@ -27,4 +27,6 @@ def chat():
         return redirect('/chat/')
       
 if __name__ == '__main__':
+    with open("saved.json","r")as f:
+        chat_list = json.loads(f.read())
     app.run('0.0.0.0',8000,True)
