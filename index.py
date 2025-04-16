@@ -10,11 +10,11 @@ def exit_run():
     content = dumps(chat_list)
     with open("saved.json","w")as f:
         f.write(content)
-
+        
 @app.route('/')
 def index():
     return "Welcome to Teleground"
-
+  
 @app.route('/chat/',methods=['GET','POST'])
 def chat():
     if request.method == 'GET':
@@ -24,6 +24,7 @@ def chat():
         print(content)
         chat_list.append(content)
         exit_run()
-        return redirect("/chat/")
+        return redirect('/chat/')
+      
 if __name__ == '__main__':
     app.run('0.0.0.0',8000,True)
