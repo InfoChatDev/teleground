@@ -29,4 +29,4 @@ def chat():
 if __name__ == '__main__':
     with open("saved.json","r")as f:
         chat_list = json.loads(f.read())
-    app.run('0.0.0.0',8000,True)
+    app.run('0.0.0.0',8000,False)
