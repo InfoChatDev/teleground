@@ -1,26 +1,26 @@
 name: Cross-Platform Release
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
+    types: [closed]
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   build:
+    if: github.event.pull_request.merged == true
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: 
-          - ubuntu-latest    # 24.04
+          - ubuntu-latest
           - ubuntu-22.04
-          #- ubuntu-20.04   # 已弃用，将于2025-04-15移除
-          - macos-latest    # macOS 14
+          - macos-latest
           - macos-13
-          - windows-latest  # 2022 (Win10)
-          - windows-2025    # Win11
+          - windows-latest
+          - windows-2025
         python-version: ["3.8"]
       fail-fast: false
 
@@ -30,7 +30,6 @@ jobs:
     - name: Verify files
       shell: bash
       run: |
-        # 静默检查目录（不显示警告）
         [ -d static ] && echo "static directory exists" || true
         [ -d templates ] && echo "templates directory exists" || true
 
@@ -47,10 +46,8 @@ jobs:
     - name: Build executable
       shell: bash
       run: |
-        # 自动创建必要目录
         mkdir -p static templates
 
-        # 智能路径处理
         if [[ "${{ matrix.os }}" == windows* ]]; then
           SEP=";"
           EXT=".exe"
@@ -59,12 +56,10 @@ jobs:
           EXT=""
         fi
 
-        # 动态生成PyInstaller参数
         PYI_ARGS="--onefile"
         [ -d "static" ] && PYI_ARGS+=" --add-data static${SEP}static"
         [ -d "templates" ] && PYI_ARGS+=" --add-data templates${SEP}templates"
 
-        # 系统版本映射
         case "${{ matrix.os }}" in
           ubuntu-latest)   SYS_TAG="ubuntu24" ;;
           ubuntu-22.04)    SYS_TAG="ubuntu22" ;;
@@ -75,8 +70,6 @@ jobs:
         esac
 
         OUTPUT_NAME="app-${SYS_TAG}${EXT}"
-        
-        # 执行构建
         pyinstaller $PYI_ARGS --name "$OUTPUT_NAME" index.py
         mv dist/* .
 
@@ -89,6 +82,7 @@ jobs:
           *.exe
 
   release:
+    if: github.event.pull_request.merged == true
     needs: build
     runs-on: ubuntu-latest
 
@@ -103,24 +97,32 @@ jobs:
     - name: Create release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: alpha-${{ github.run_number }}
-        name: "Build #${{ github.run_number }}"
+        tag_name: pr-${{ github.event.pull_request.number }}-${{ github.run_number }}
+        name: "PR #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}"
         body: |
-          ## 支持系统列表
-          | 系统版本       | 对应文件          |
-          |----------------|-------------------|
-          | Windows 11     | `app-win11.exe`   |
-          | Windows 10     | `app-win10.exe`   |
-          | macOS 14       | `app-macos14`     |
-          | macOS 13       | `app-macos13`     |
-          | Ubuntu 24.04   | `app-ubuntu24`    |
-          | Ubuntu 22.04   | `app-ubuntu22`    |
+          ## 🚀 变更说明
+          **提交者:** @${{ github.event.pull_request.user.login }}  
+          **合并时间:** ${{ github.event.pull_request.merged_at }}  
+          
+          ### PR 描述
+          ${{ format('{0}', github.event.pull_request.body || '此PR无附加说明') }}
 
-          **注意事项**  
-          ✅ 使用前请确保系统满足最低要求  
-          ⚠️ Ubuntu 20.04 支持已终止  
-          📅 构建号: `${{ github.run_number }}`  
-          🆔 提交ID: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          [查看完整PR](${{ github.event.pull_request.html_url }})
+
+          ## 📦 系统支持
+          | 系统版本       | 可执行文件       |
+          |---------------|------------------|
+          | Windows 11    | `app-win11.exe`  |
+          | Windows 10    | `app-win10.exe`  |
+          | macOS 14      | `app-macos14`    |
+          | macOS 13      | `app-macos13`    |
+          | Ubuntu 24.04  | `app-ubuntu24`   |
+          | Ubuntu 22.04  | `app-ubuntu22`   |
+
+          ## 📌 构建信息
+          - 构建号: `#${{ github.run_number }}`
+          - 提交哈希: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          - 构建时间: ${{ steps.date.outputs.current_date }}
         prerelease: true
         files: |
           artifacts/app-ubuntu24
