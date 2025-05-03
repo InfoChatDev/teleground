@@ -25,8 +25,10 @@ def chat():
         chat_list.append(content)
         exit_run()
         return redirect('/chat_anymous/')
-      
 if __name__ == '__main__':
-    with open("saved.json","r")as f:
-        chat_list = json.loads(f.read())
-    app.run('0.0.0.0',8000,True)
+    try:
+        with open("saved.json","r")as f:
+            chat_list = json.loads(f.read())
+    except:
+        chat_list = []
+    app.run('0.0.0.0',8000,False)

@@ -1,0 +1,133 @@
+name: Cross-Platform Release
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  build:
+    if: github.event.pull_request.merged == true
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: 
+          - ubuntu-latest
+          - ubuntu-22.04
+          - macos-latest
+          - macos-13
+          - windows-latest
+          - windows-2025
+        python-version: ["3.8"]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Verify files
+      shell: bash
+      run: |
+        [ -d static ] && echo "static directory exists" || true
+        [ -d templates ] && echo "templates directory exists" || true
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flask pyinstaller
+
+    - name: Build executable
+      shell: bash
+      run: |
+        mkdir -p static templates
+
+        if [[ "${{ matrix.os }}" == windows* ]]; then
+          SEP=";"
+          EXT=".exe"
+        else
+          SEP=":"
+          EXT=""
+        fi
+
+        PYI_ARGS="--onefile"
+        [ -d "static" ] && PYI_ARGS+=" --add-data static${SEP}static"
+        [ -d "templates" ] && PYI_ARGS+=" --add-data templates${SEP}templates"
+
+        case "${{ matrix.os }}" in
+          ubuntu-latest)   SYS_TAG="ubuntu24" ;;
+          ubuntu-22.04)    SYS_TAG="ubuntu22" ;;
+          macos-latest)    SYS_TAG="macos14" ;;
+          macos-13)        SYS_TAG="macos13" ;;
+          windows-latest)  SYS_TAG="win10" ;;
+          windows-2025)    SYS_TAG="win11" ;;
+        esac
+
+        OUTPUT_NAME="app-${SYS_TAG}${EXT}"
+        pyinstaller $PYI_ARGS --name "$OUTPUT_NAME" index.py
+        mv dist/* .
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.os }}-build
+        path: |
+          app-*
+          *.exe
+
+  release:
+    if: github.event.pull_request.merged == true
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        pattern: '*-build'
+        merge-multiple: true
+
+    - name: Create release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: pr-${{ github.event.pull_request.number }}-${{ github.run_number }}
+        name: "PR #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}"
+        body: |
+          ## 🚀 变更说明
+          **提交者:** @${{ github.event.pull_request.user.login }}  
+          **合并时间:** ${{ github.event.pull_request.merged_at }}  
+          
+          ### PR 描述
+          ${{ format('{0}', github.event.pull_request.body || '此PR无附加说明') }}
+
+          [查看完整PR](${{ github.event.pull_request.html_url }})
+
+          ## 📦 系统支持
+          | 系统版本       | 可执行文件       |
+          |---------------|------------------|
+          | Windows 11    | `app-win11.exe`  |
+          | Windows 10    | `app-win10.exe`  |
+          | macOS 14      | `app-macos14`    |
+          | macOS 13      | `app-macos13`    |
+          | Ubuntu 24.04  | `app-ubuntu24`   |
+          | Ubuntu 22.04  | `app-ubuntu22`   |
+
+          ## 📌 构建信息
+          - 构建号: `#${{ github.run_number }}`
+          - 提交哈希: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          - 构建时间: ${{ steps.date.outputs.current_date }}
+        prerelease: true
+        files: |
+          artifacts/app-ubuntu24
+          artifacts/app-ubuntu22
+          artifacts/app-macos14
+          artifacts/app-macos13
+          artifacts/app-win10.exe
+          artifacts/app-win11.exe
