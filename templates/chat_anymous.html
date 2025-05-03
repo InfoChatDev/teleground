@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Anymous Chat{% endblock %}
+{% block path %}Anymous Chat{% endblock %}
+
+<h1>Welcome to the Teleground software</h1>
+<description>This is a private place,you can chat anything with other.</description>
+
+{% block body%}
+
+{% for i in chat_list%}
+    <label>{{i}}</label>
+    <br>
+{% endfor %}
+<form action="/chat_anymous/" method="POST">
+    <textarea id="content" name="content"></textarea>
+    <button type="submit">Send</button>
+</form>
+
+{% endblock %}
