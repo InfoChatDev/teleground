@@ -13,9 +13,9 @@ def exit_run():
         
 @app.route('/')
 def index():
-    return "Welcome to Teleground"
+    return render_template('index.html')
   
-@app.route('/chat/',methods=['GET','POST'])
+@app.route('/chat_anymous/',methods=['GET','POST'])
 def chat():
     if request.method == 'GET':
         return render_template("chat.html",chat_list=chat_list)
@@ -24,8 +24,7 @@ def chat():
         print(content)
         chat_list.append(content)
         exit_run()
-        return redirect('/chat/')
-      
+        return redirect('/chat_anymous/')
 if __name__ == '__main__':
     try:
         with open("saved.json","r")as f:
